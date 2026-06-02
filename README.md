@@ -37,12 +37,12 @@ export LST_API_KEY="your-api-key"
 
 ## Usage
 
-See `https://docs.latentsense.com`
+See public methods of LatentSenseClient.
 
-Here's a basic example of how to initialize the client and use it to redact Personally Identifiable Information (PII) from a document.
+For API documentation, see `https://docs.latentsense.com`
 
 ```python
-import os
+import asyncio
 from latentsense_sdk import LatentSenseClient
 
 # The client is configured via environment variables.
@@ -52,21 +52,25 @@ from latentsense_sdk import LatentSenseClient
 
 client = LatentSenseClient()
 
-# Example 1: Create RxMap
-in_memory_file = ("report.txt", "This is a report about Jane Smith.")
-rx_map_results = client.create_rx_map(files=[in_memory_file])
+async def rx_map_example():
+    in_memory_file = ("report.txt", "This is a report about Jane Smith.")
+    rx_map_results = await client.create_rx_map(files=[in_memory_file])
+    
+    for result in rx_map_results:
+        print(f"--- Results for {result.file.name} ---")
+        print(f"Nodes in graph: {result.graph.nodes}")
 
-for result in rx_map_results:
-    print(f"--- Results for {result.original_file_name} ---")
-    print(f"Nodes in graph: {result.graph.nodes}")
 
-
-# Example 2: Redact PII
-in_memory_file = ("report.txt", "This is a report about Jane Smith.")
-redacted_results = client.redact_pii(files=[in_memory_file])
-
-for result in redacted_results:
-    print(f"--- Results for {result.original_file_name} ---")
-    print(f"Redacted text: {result.redacted_text}")
+async def redaction_example():
+    in_memory_file = ("report.txt", "This is a report about Jane Smith.")
+    redacted_results = await client.redact_pii(files=[in_memory_file])
+    
+    for result in redacted_results:
+        print(f"--- Results for {result.file.name} ---")
+        print(f"Redacted text: {result.redacted}")
+        
+if __name__ == '__main__':
+    asyncio.run(rx_map_example())
+    asyncio.run(redaction_example())
 
 ```
