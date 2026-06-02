@@ -282,9 +282,9 @@ class LatentSenseClient:
                or a (filename, content) tuple.
         intent_text (optional): Text to check for relevance against (e.g., a term, concept, or phrase).
         """
-        payload = {}
+        payload = {"concepts": []}
         if intent_text:
-            payload["concepts"] = [intent_text]
+            payload["concepts"].append(intent_text)
 
         return await self._run_multistage(
             endpoint_path="/runs/relationships-discovery",
@@ -316,14 +316,14 @@ class LatentSenseClient:
             file_parts = {"files": files}
             multipart_payload, opened_files = self._prepare_payload(**file_parts)
 
-            data_payload = {}
+            data = {"concepts": []}
             if intent_text:
-                data_payload["concepts"] = [intent_text]
+                data["concepts"].append(intent_text)
 
             response = self._session.post(
                 endpoint,
                 files=multipart_payload,
-                data=data_payload,
+                data=data,
             )
             response.raise_for_status()
             run_id = response.json()["run_id"]

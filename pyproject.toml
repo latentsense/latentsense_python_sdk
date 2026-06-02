@@ -1,6 +1,6 @@
 [project]
 name = "latentsense-sdk"
-version = "1.0.7"
+version = "1.0.8"
 description = "The Python SDK for LatentSense Inc services. www.latentsense.com"
 license = "MIT"
 license-files = ["LICENSE"]
