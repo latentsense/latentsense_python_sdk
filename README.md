@@ -2,7 +2,9 @@
 
 ## Overview
 
-The LatentSense Python SDK provides a convenient client for interacting with the Latentsense Interactive API. It simplifies authentication, file uploads, and requests to various API endpoints for text analysis and manipulation.
+The LatentSense Python SDK provides a convenient and developer-friendly client for accessing the LatentSense Interactive APIs. Designed for enterprise environments, it streamlines authentication, file handling, and API interactions, enabling organizations to transform unbounded corpora of unstructured language-as-data into reasoning-ready semantic structures (through rxMaps) and privacy-preserving data assets (through DeiD).
+
+Through capabilities such as semantic spaces mapping, saliency detection, relationship discovery, and data de-identification, the SDK helps convert language data into interoperable semantic infrastructure that can power analytics, agentic automation, knowledge systems, business workflows, and decision-making at enterprise scale. No RAG. No re-platforming. No ETL required.
 
 ## Installation
 
@@ -39,7 +41,7 @@ export LST_API_KEY="your-api-key"
 
 See `https://docs.latentsense.com`
 
-Here's a basic example of how to initialize the client and use it to redact Personally Identifiable Information (PII) from a document.
+Here's a basic example of how to initialize the client and use it to create rxMaps (readining ready data) or redact Personally Identifiable Information (PII) from a document.
 
 ```python
 import os
