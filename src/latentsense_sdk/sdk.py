@@ -42,8 +42,8 @@ class LatentSenseClient:
         self.session = SessionCore(
             project_id=project_id, api_key=api_key, base_url=base_url
         )
-        self.runs = RunsClient(session=self.session)
-        self.small_runs = SmallRunsClient(session=self.session)
+        self.runs: RunsClient = RunsClient(session=self.session)
+        self.small_runs: SmallRunsClient = SmallRunsClient(session=self.session)
 
     async def create_rex_message(
         self, message: str, run_id: str, graph_info: Optional[Dict[str, Any]] = None
@@ -160,10 +160,11 @@ class RunsClient(BaseRunsClient):
         payload: dict,
         response_model: Type[ResponseModelT],
     ) -> List[ResponseModelT]:
-        upload_data = self._initiate_upload()
-        self._upload_files(corpora=files, upload_data=upload_data)
+        upload_prefixes = self._upload_files(corpora=files)
         run_id = self._request_run(
-            payload=payload, endpoint_path=endpoint_path, upload_data=upload_data
+            payload=payload,
+            endpoint_path=endpoint_path,
+            upload_prefixes=upload_prefixes,
         )
         output_file_urls = await self._get_run_result(run_id=run_id)
         results = self._download_results(
@@ -175,10 +176,10 @@ class RunsClient(BaseRunsClient):
         return results
 
     def _request_run(
-        self, payload: dict, endpoint_path: str, upload_data: InitiateUploadResponse
+        self, payload: dict, endpoint_path: str, upload_prefixes: List[str]
     ):
         run_payload = {
-            "input_prefixes": [upload_data.s3_input_corpus_prefix],
+            "input_prefixes": upload_prefixes,
             "parameters": payload,
         }
         run_resp = self.session.requests_session.post(
@@ -188,22 +189,16 @@ class RunsClient(BaseRunsClient):
         run_id = run_resp.json()["run_id"]
         return run_id
 
-    def _initiate_upload(self) -> InitiateUploadResponse:
-        upload_resp = self.session.requests_session.post(
-            f"{self.session.base_url}/projects/{self.session.project_id}/uploads",
-            json={},
-        )
-        upload_resp.raise_for_status()
-        upload_data = InitiateUploadResponse(**upload_resp.json())
-        return upload_data
-
-    def _upload_files(
-        self, corpora: Corpora, upload_data: InitiateUploadResponse
-    ):
+    def _upload_files(self, corpora: Corpora) -> List[str]:
+        # returns upload prefixes
         if not isinstance(corpora, dict):
             corpora = {"corpus": corpora}
 
+        upload_prefixes = []
         for corpus_name, files in corpora.items():
+            upload_data = self._initiate_upload(corpus_name=corpus_name)
+            upload_prefixes.append(upload_data.s3_input_corpus_prefix)
+
             for file_input in files:
                 if isinstance(file_input, str):
                     filename = os.path.basename(file_input)
@@ -220,8 +215,22 @@ class RunsClient(BaseRunsClient):
                     upload_data.presigned_post.url,
                     data=field_json,
                     files=files_dict,
-                )
+                )  # todo, on expiry, fetch new presigned_post and retry
                 upload_res.raise_for_status()
+        return upload_prefixes
+
+    def _initiate_upload(
+        self, corpus_name: Optional[str] = None
+    ) -> InitiateUploadResponse:
+        if not corpus_name:
+            corpus_name = "corpus"
+        upload_resp = self.session.requests_session.post(
+            f"{self.session.base_url}/projects/{self.session.project_id}/uploads",
+            json={"name": corpus_name},
+        )
+        upload_resp.raise_for_status()
+        upload_data = InitiateUploadResponse(**upload_resp.json())
+        return upload_data
 
     async def _get_run_result(self, run_id: str) -> Dict[str, str]:
         while True:
@@ -498,3 +507,6 @@ class SessionCore:
             "LST_API_BASE_URL", "https://controller.latentsense.com"
         )
         self.requests_session = requests.Session()
+        self.requests_session.headers.update(
+            {"x-api-key": self.api_key, "Accept": "application/json"}
+        )
