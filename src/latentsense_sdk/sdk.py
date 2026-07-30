@@ -38,6 +38,30 @@ class LatentSenseClient:
         self.runs = RunsClient(session=self.session)
         self.small_runs = SmallRunsClient(session=self.session)
 
+    async def create_rex_message(
+        self, message: str, run_id: str, graph_info: Optional[Dict[str, Any]] = None
+    ) -> AiRexMessage:
+        """
+        Sends a message to a specific ReasonerX (Rex) graph session to get a response.
+
+        message: The message/question to send to the graph.
+        run_id: The ID of the Rex graph run to interact with. This is found
+                as `runId` for each file in the response from `create_rex_map`.
+        """
+        endpoint = (
+            f"{self.session.base_url}/api/chat/{self.session.project_id}/rex-message"
+        )
+        params = {
+            "message": message,
+            "run_id": run_id,
+        }
+
+        response = self.session.requests_session.post(
+            endpoint, params=params, json=graph_info
+        )
+        response.raise_for_status()
+        return AiRexMessage.model_validate(response.json())
+
 
 class BaseRunsClient:
     def __init__(self, session: "SessionCore"):
@@ -75,30 +99,6 @@ class RunsClient(BaseRunsClient):
             payload=payload,
             response_model=ReasonerXFileAnalysisWithOriginal,
         )
-
-    async def create_rex_message(
-        self, message: str, run_id: str, graph_info: Optional[Dict[str, Any]] = None
-    ) -> AiRexMessage:
-        """
-        Sends a message to a specific ReasonerX (Rex) graph session to get a response.
-
-        message: The message/question to send to the graph.
-        run_id: The ID of the Rex graph run to interact with. This is found
-                as `runId` for each file in the response from `create_rex_map`.
-        """
-        endpoint = (
-            f"{self.session.base_url}/api/chat/{self.session.project_id}/rex-message"
-        )
-        params = {
-            "message": message,
-            "run_id": run_id,
-        }
-
-        response = self.session.requests_session.post(
-            endpoint, params=params, json=graph_info
-        )
-        response.raise_for_status()
-        return AiRexMessage.model_validate(response.json())
 
     async def get_salient_relationships(
         self, files: List[FileInput], intent_text: str = None
@@ -247,7 +247,7 @@ class SmallRunsClient(BaseRunsClient):
     def __init__(self, session: "SessionCore"):
         super().__init__(session=session)
 
-    async def create_rx_map_small(
+    async def create_rx_map(
         self,
         files: List[FileInput],
         concepts: Optional[List[str]] = None,
@@ -294,7 +294,7 @@ class SmallRunsClient(BaseRunsClient):
             for f in opened_files:
                 f.close()
 
-    async def get_salient_relationships_small(
+    async def get_salient_relationships(
         self, files: List[FileInput], intent_text: str = None
     ) -> List[RelsFileAnalysisWithOriginal]:
         """
@@ -336,7 +336,7 @@ class SmallRunsClient(BaseRunsClient):
             for f in opened_files:
                 f.close()
 
-    async def redact_by_relevance_small(
+    async def redact_by_relevance(
         self, files: List[FileInput], relevance_term: str, sensitivity: float
     ) -> List[RedactionFileAnalysisWithOriginal]:
         """
@@ -379,7 +379,7 @@ class SmallRunsClient(BaseRunsClient):
             for f in opened_files:
                 f.close()
 
-    async def redact_pii_small(
+    async def redact_pii(
         self, files: List[FileInput]
     ) -> List[RedactionFileAnalysisWithOriginal]:
         """
