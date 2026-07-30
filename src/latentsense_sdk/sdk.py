@@ -123,7 +123,7 @@ class LatentSenseClient:
         self, payload: dict, endpoint_path: str, upload_data: InitiateUploadResponse
     ):
         run_payload = {
-            "input_prefix": upload_data.s3_input_corpus_prefix,
+            "input_prefixes": [upload_data.s3_input_corpus_prefix],
             "parameters": payload,
         }
         run_resp = self._session.post(

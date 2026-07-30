@@ -8,7 +8,4 @@
   </component>
   <component name="BlackConnectSettings" triggerOnEachSave="true" triggerOnReformat="true" />
   <component name="ProjectRootManager" version="2" project-jdk-name="Python 3.11 (latentsense_python_sdk)" project-jdk-type="Python SDK" />
-  <component name="PyDebuggerOptionsProvider">
-    <option name="myDropIntoDebuggerOnFailedTests" value="true" />
-  </component>
 </project>
