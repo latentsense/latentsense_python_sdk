@@ -14,7 +14,14 @@ from latentsense_sdk.workers.relationships import (
 )
 from latentsense_sdk.results import extract_tar_zst_results
 
-FileInput = Union[str, Tuple[str, str]]
+FileInput = Union[
+    str,  # content
+    Tuple[str, str],  # (filename, content)
+]
+Corpora = Union[
+    Dict[str, List[FileInput]],  # named corpora
+    List[FileInput],  # single corpus
+]
 ResponseModelT = TypeVar("ResponseModelT", bound=BaseModel)
 
 
@@ -74,7 +81,7 @@ class RunsClient(BaseRunsClient):
 
     async def create_rx_map(
         self,
-        files: List[FileInput],
+        files: Corpora,
         concepts: Optional[List[str]] = None,
     ) -> List[ReasonerXFileAnalysisWithOriginal]:
         """
@@ -101,7 +108,7 @@ class RunsClient(BaseRunsClient):
         )
 
     async def get_salient_relationships(
-        self, files: List[FileInput], intent_text: str = None
+        self, files: Corpora, intent_text: str = None
     ) -> List[RelsFileAnalysisWithOriginal]:
         """
         Lists relationship propositions in the documents that are deemed salient
@@ -127,7 +134,7 @@ class RunsClient(BaseRunsClient):
         )
 
     async def redact_pii(
-        self, files: List[FileInput]
+        self, files: Corpora
     ) -> List[RedactionFileAnalysisWithOriginal]:
         """
         Redacts PII (Personally Identifiable Information) from documents.
@@ -149,12 +156,12 @@ class RunsClient(BaseRunsClient):
     async def _run_multistage(
         self,
         endpoint_path: str,
-        files: List[FileInput],
+        files: Corpora,
         payload: dict,
         response_model: Type[ResponseModelT],
     ) -> List[ResponseModelT]:
         upload_data = self._initiate_upload()
-        self._upload_files(files=files, upload_data=upload_data)
+        self._upload_files(corpora=files, upload_data=upload_data)
         run_id = self._request_run(
             payload=payload, endpoint_path=endpoint_path, upload_data=upload_data
         )
@@ -191,27 +198,30 @@ class RunsClient(BaseRunsClient):
         return upload_data
 
     def _upload_files(
-        self, files: List[FileInput], upload_data: InitiateUploadResponse
+        self, corpora: Corpora, upload_data: InitiateUploadResponse
     ):
-        for file_input in files:
-            if isinstance(file_input, str):
-                filename = os.path.basename(file_input)
-                with open(file_input, "rb") as f:
-                    file_content = f.read()
-            else:
-                filename, file_content = file_input
+        if not isinstance(corpora, dict):
+            corpora = {"corpus": corpora}
 
-            field_json = upload_data.presigned_post.fields.model_dump()
-            # fields.key = fields.key.replace("${filename}", filename)
-            field_json["key"] = field_json["key"].replace("${filename}", filename)
+        for corpus_name, files in corpora.items():
+            for file_input in files:
+                if isinstance(file_input, str):
+                    filename = os.path.basename(file_input)
+                    with open(file_input, "rb") as f:
+                        file_content = f.read()
+                else:
+                    filename, file_content = file_input
 
-            files_dict = {"file": (filename, file_content)}
-            upload_res = requests.post(
-                upload_data.presigned_post.url,
-                data=field_json,
-                files=files_dict,
-            )
-            upload_res.raise_for_status()
+                field_json = upload_data.presigned_post.fields.model_dump()
+                field_json["key"] = field_json["key"].replace("${filename}", filename)
+
+                files_dict = {"file": (filename, file_content)}
+                upload_res = requests.post(
+                    upload_data.presigned_post.url,
+                    data=field_json,
+                    files=files_dict,
+                )
+                upload_res.raise_for_status()
 
     async def _get_run_result(self, run_id: str) -> Dict[str, str]:
         while True:
@@ -249,7 +259,7 @@ class SmallRunsClient(BaseRunsClient):
 
     async def create_rx_map(
         self,
-        files: List[FileInput],
+        files: Corpora,
         concepts: Optional[List[str]] = None,
     ) -> List[ReasonerXFileAnalysisWithOriginal]:
         """
@@ -295,7 +305,7 @@ class SmallRunsClient(BaseRunsClient):
                 f.close()
 
     async def get_salient_relationships(
-        self, files: List[FileInput], intent_text: str = None
+        self, files: Corpora, intent_text: str = None
     ) -> List[RelsFileAnalysisWithOriginal]:
         """
         Lists relationship propositions in the documents that are deemed salient
@@ -337,7 +347,7 @@ class SmallRunsClient(BaseRunsClient):
                 f.close()
 
     async def redact_by_relevance(
-        self, files: List[FileInput], relevance_term: str, sensitivity: float
+        self, files: Corpora, relevance_term: str, sensitivity: float
     ) -> List[RedactionFileAnalysisWithOriginal]:
         """
         Removes information from documents that is relevant to a given term.
@@ -380,7 +390,7 @@ class SmallRunsClient(BaseRunsClient):
                 f.close()
 
     async def redact_pii(
-        self, files: List[FileInput]
+        self, files: Corpora
     ) -> List[RedactionFileAnalysisWithOriginal]:
         """
         Redacts PII (Personally Identifiable Information) from documents.
