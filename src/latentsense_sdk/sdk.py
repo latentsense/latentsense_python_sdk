@@ -5,12 +5,18 @@ import requests
 from typing import List, Optional, Any, Union, Tuple, IO, Dict, Type, TypeVar
 from pydantic import BaseModel
 
-from latentsense_sdk.schemas import InitiateUploadResponse
+from latentsense_sdk.schemas import (
+    InitiateUploadResponse,
+    RunDisplay,
+    RunsPageAndTotal,
+    RunCreationResponse,
+)
 from latentsense_sdk.workers.redaction import RedactionFileAnalysisWithOriginal
 from latentsense_sdk.workers.relationships import (
     ReasonerXFileAnalysisWithOriginal,
     RelsFileAnalysisWithOriginal,
     AiRexMessage,
+    RexMessage,
 )
 from latentsense_sdk.results import extract_tar_zst_results
 
@@ -488,13 +494,14 @@ class SmallRunsClient(BaseRunsClient):
 class ApiClient:
     """
     Low-level API wrappers that map directly to the underlying API routes.
-    These methods return the raw requests.Response object.
     """
 
     def __init__(self, session: "SessionCore"):
         self.session = session
 
-    def _prepare_files(self, files: List[FileInput]) -> Tuple[List[Tuple[str, Any]], List[IO]]:
+    def _prepare_files(
+        self, files: List[FileInput]
+    ) -> Tuple[List[Tuple[str, Any]], List[IO]]:
         multipart_payload = []
         opened_files = []
         for file_input in files:
@@ -523,7 +530,7 @@ class ApiClient:
         rows_per_page: int = 50,
         sort_by: str = "time",
         descending: bool = True,
-    ) -> requests.Response:
+    ) -> RunsPageAndTotal:
         endpoint = f"{self.session.base_url}/api/runs/project/{self.session.project_id}"
         params = {
             "filter_cog_name": filter_cog_name,
@@ -536,30 +543,55 @@ class ApiClient:
             "descending": descending,
         }
         params = {k: v for k, v in params.items() if v is not None}
-        return self.session.requests_session.get(endpoint, params=params)
+        response = self.session.requests_session.get(endpoint, params=params)
+        response.raise_for_status()
+        return RunsPageAndTotal.model_validate(response.json())
 
-    def get_run_results(self, run_id: str) -> requests.Response:
+    def get_run_results(self, run_id: str) -> List[
+        Union[
+            RedactionFileAnalysisWithOriginal,
+            RelsFileAnalysisWithOriginal,
+            ReasonerXFileAnalysisWithOriginal,
+            dict,
+        ]
+    ]:
         endpoint = f"{self.session.base_url}/api/runs/{run_id}/results"
-        return self.session.requests_session.get(endpoint)
+        response = self.session.requests_session.get(endpoint)
+        response.raise_for_status()
+        results = []
+        for item in response.json():
+            if "redacted" in item:
+                results.append(RedactionFileAnalysisWithOriginal.model_validate(item))
+            elif "relationships" in item:
+                results.append(RelsFileAnalysisWithOriginal.model_validate(item))
+            elif "graph" in item:
+                results.append(ReasonerXFileAnalysisWithOriginal.model_validate(item))
+            else:
+                results.append(item)
+        return results
 
     def initiate_upload(
         self, name: Optional[str] = None, corpus_id: Optional[str] = None
-    ) -> requests.Response:
+    ) -> InitiateUploadResponse:
         endpoint = f"{self.session.base_url}/projects/{self.session.project_id}/uploads"
         params = {}
         if name is not None:
             params["name"] = name
         if corpus_id is not None:
             params["corpus_id"] = corpus_id
-        return self.session.requests_session.post(endpoint, params=params)
+        response = self.session.requests_session.post(endpoint, params=params)
+        response.raise_for_status()
+        return InitiateUploadResponse.model_validate(response.json())
 
-    def get_run_status(self, run_id: str) -> requests.Response:
+    def get_run_status(self, run_id: str) -> RunDisplay:
         endpoint = f"{self.session.base_url}/runs/{run_id}"
-        return self.session.requests_session.get(endpoint)
+        response = self.session.requests_session.get(endpoint)
+        response.raise_for_status()
+        return RunDisplay.model_validate(response.json())
 
     def redact_relevance(
         self, input_prefix: str, relevance_term: str, sensitivity: float = 0.5
-    ) -> requests.Response:
+    ) -> RunCreationResponse:
         endpoint = f"{self.session.base_url}/runs/redact-relevance"
         payload = {
             "input_prefix": input_prefix,
@@ -568,36 +600,44 @@ class ApiClient:
                 "sensitivity": sensitivity,
             },
         }
-        return self.session.requests_session.post(endpoint, json=payload)
+        response = self.session.requests_session.post(endpoint, json=payload)
+        response.raise_for_status()
+        return RunCreationResponse.model_validate(response.json())
 
-    def redact_pii(self, input_prefix: str) -> requests.Response:
+    def redact_pii(self, input_prefix: str) -> RunCreationResponse:
         endpoint = f"{self.session.base_url}/runs/redact-pii"
         payload = {"input_prefix": input_prefix}
-        return self.session.requests_session.post(endpoint, json=payload)
+        response = self.session.requests_session.post(endpoint, json=payload)
+        response.raise_for_status()
+        return RunCreationResponse.model_validate(response.json())
 
     def relationships_discovery(
         self, input_prefix: str, concepts: Optional[List[str]] = None
-    ) -> requests.Response:
+    ) -> RunCreationResponse:
         endpoint = f"{self.session.base_url}/runs/relationships-discovery"
         payload = {
             "input_prefix": input_prefix,
             "parameters": {"concepts": concepts} if concepts is not None else {},
         }
-        return self.session.requests_session.post(endpoint, json=payload)
+        response = self.session.requests_session.post(endpoint, json=payload)
+        response.raise_for_status()
+        return RunCreationResponse.model_validate(response.json())
 
     def rx_map(
         self, input_prefix: str, concepts: Optional[List[str]] = None
-    ) -> requests.Response:
+    ) -> RunCreationResponse:
         endpoint = f"{self.session.base_url}/runs/rx-map"
         payload = {
             "input_prefix": input_prefix,
             "parameters": {"concepts": concepts} if concepts is not None else {},
         }
-        return self.session.requests_session.post(endpoint, json=payload)
+        response = self.session.requests_session.post(endpoint, json=payload)
+        response.raise_for_status()
+        return RunCreationResponse.model_validate(response.json())
 
     def small_redact_relevance(
         self, files: List[FileInput], relevance_term: str, sensitivity: float = 0.5
-    ) -> requests.Response:
+    ) -> RunCreationResponse:
         endpoint = f"{self.session.base_url}/runs/small/{self.session.project_id}/redact-relevance"
         multipart_payload, opened_files = self._prepare_files(files)
         try:
@@ -605,88 +645,144 @@ class ApiClient:
                 "relevance_term": relevance_term,
                 "sensitivity": sensitivity,
             }
-            return self.session.requests_session.post(
+            response = self.session.requests_session.post(
                 endpoint, files=multipart_payload, data=data
             )
+            response.raise_for_status()
+            return RunCreationResponse.model_validate(response.json())
         finally:
             for f in opened_files:
                 f.close()
 
-    def small_redact_relevance_result(self, run_id: str) -> requests.Response:
-        endpoint = f"{self.session.base_url}/runs/small/{run_id}/result/redact-relevance"
-        return self.session.requests_session.get(endpoint)
+    def small_redact_relevance_result(
+        self, run_id: str
+    ) -> List[RedactionFileAnalysisWithOriginal]:
+        endpoint = (
+            f"{self.session.base_url}/runs/small/{run_id}/result/redact-relevance"
+        )
+        response = self.session.requests_session.get(endpoint)
+        response.raise_for_status()
+        return [
+            RedactionFileAnalysisWithOriginal.model_validate(item)
+            for item in response.json()
+        ]
 
-    def small_redact_pii(self, files: List[FileInput]) -> requests.Response:
-        endpoint = f"{self.session.base_url}/runs/small/{self.session.project_id}/redact-pii"
+    def small_redact_pii(self, files: List[FileInput]) -> RunCreationResponse:
+        endpoint = (
+            f"{self.session.base_url}/runs/small/{self.session.project_id}/redact-pii"
+        )
         multipart_payload, opened_files = self._prepare_files(files)
         try:
-            return self.session.requests_session.post(
+            response = self.session.requests_session.post(
                 endpoint, files=multipart_payload
             )
+            response.raise_for_status()
+            return RunCreationResponse.model_validate(response.json())
         finally:
             for f in opened_files:
                 f.close()
 
-    def small_redact_pii_result(self, run_id: str) -> requests.Response:
+    def small_redact_pii_result(
+        self, run_id: str
+    ) -> List[RedactionFileAnalysisWithOriginal]:
         endpoint = f"{self.session.base_url}/runs/small/{run_id}/result/redact-pii"
-        return self.session.requests_session.get(endpoint)
+        response = self.session.requests_session.get(endpoint)
+        response.raise_for_status()
+        return [
+            RedactionFileAnalysisWithOriginal.model_validate(item)
+            for item in response.json()
+        ]
 
     def small_relationships_discovery(
         self, files: List[FileInput], concepts: Optional[List[str]] = None
-    ) -> requests.Response:
+    ) -> RunCreationResponse:
         endpoint = f"{self.session.base_url}/runs/small/{self.session.project_id}/relationships-discovery"
         multipart_payload, opened_files = self._prepare_files(files)
         try:
             data = {}
             if concepts is not None:
                 data["concepts"] = concepts
-            return self.session.requests_session.post(
+            response = self.session.requests_session.post(
                 endpoint, files=multipart_payload, data=data
             )
+            response.raise_for_status()
+            return RunCreationResponse.model_validate(response.json())
         finally:
             for f in opened_files:
                 f.close()
 
-    def small_relationships_discovery_result(self, run_id: str) -> requests.Response:
+    def small_relationships_discovery_result(
+        self, run_id: str
+    ) -> List[RelsFileAnalysisWithOriginal]:
         endpoint = f"{self.session.base_url}/runs/small/{run_id}/result/relationships-discovery"
-        return self.session.requests_session.get(endpoint)
+        response = self.session.requests_session.get(endpoint)
+        response.raise_for_status()
+        return [
+            RelsFileAnalysisWithOriginal.model_validate(item)
+            for item in response.json()
+        ]
 
     def small_rx_map(
         self, files: List[FileInput], concepts: Optional[List[str]] = None
-    ) -> requests.Response:
-        endpoint = f"{self.session.base_url}/runs/small/{self.session.project_id}/rx-map"
+    ) -> RunCreationResponse:
+        endpoint = (
+            f"{self.session.base_url}/runs/small/{self.session.project_id}/rx-map"
+        )
         multipart_payload, opened_files = self._prepare_files(files)
         try:
             data = {}
             if concepts is not None:
                 data["concepts"] = concepts
-            return self.session.requests_session.post(
+            response = self.session.requests_session.post(
                 endpoint, files=multipart_payload, data=data
             )
+            response.raise_for_status()
+            return RunCreationResponse.model_validate(response.json())
         finally:
             for f in opened_files:
                 f.close()
 
-    def small_rx_map_result(self, run_id: str) -> requests.Response:
+    def small_rx_map_result(
+        self, run_id: str
+    ) -> List[ReasonerXFileAnalysisWithOriginal]:
         endpoint = f"{self.session.base_url}/runs/small/{run_id}/result/rx-map"
-        return self.session.requests_session.get(endpoint)
+        response = self.session.requests_session.get(endpoint)
+        response.raise_for_status()
+        return [
+            ReasonerXFileAnalysisWithOriginal.model_validate(item)
+            for item in response.json()
+        ]
 
     def create_rex_message(
         self, message: str, run_id: str, graph_info: Optional[dict] = None
-    ) -> requests.Response:
-        endpoint = f"{self.session.base_url}/api/chat/{self.session.project_id}/rex-message"
+    ) -> AiRexMessage:
+        endpoint = (
+            f"{self.session.base_url}/api/chat/{self.session.project_id}/rex-message"
+        )
         params = {
             "message": message,
             "run_id": run_id,
         }
-        return self.session.requests_session.post(
+        response = self.session.requests_session.post(
             endpoint, params=params, json=graph_info
         )
+        response.raise_for_status()
+        return AiRexMessage.model_validate(response.json())
 
-    def get_rex_message(self, run_id: str) -> requests.Response:
-        endpoint = f"{self.session.base_url}/api/chat/{self.session.project_id}/rex-message"
+    def get_rex_message(self, run_id: str) -> List[Union[RexMessage, AiRexMessage]]:
+        endpoint = (
+            f"{self.session.base_url}/api/chat/{self.session.project_id}/rex-message"
+        )
         params = {"run_id": run_id}
-        return self.session.requests_session.get(endpoint, params=params)
+        response = self.session.requests_session.get(endpoint, params=params)
+        response.raise_for_status()
+        results = []
+        for item in response.json():
+            if item.get("type") == "ai":
+                results.append(AiRexMessage.model_validate(item))
+            else:
+                results.append(RexMessage.model_validate(item))
+        return results
 
 
 class SessionCore:

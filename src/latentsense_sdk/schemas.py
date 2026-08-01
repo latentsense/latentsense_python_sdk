@@ -1,4 +1,6 @@
-from typing import Optional, List
+from enum import Enum
+
+from typing import Optional, List, Dict
 
 from pydantic import BaseModel, Field, ConfigDict
 
@@ -71,3 +73,39 @@ class Location(BaseModel):
     start: int
     end: int
     text: Optional[str] = None
+
+
+class TaskStatus(str, Enum):
+    WAITING = "waiting"
+    IN_PROGRESS = "in_progress"
+    COMPLETE = "complete"
+    COMPLETION_HANDLING_IN_PROGRESS = "completion_handling_in_progress"
+    COMPLETION_HANDLED = "completion_handled"
+    FAILED = "failed"
+
+
+class RunDisplay(BaseModel):
+    time: str
+    name: str
+    user_id: Optional[str] = None
+    corpus_ids: List[str]
+    cog: str
+    id: str
+    project_name: str
+    email: Optional[str] = None
+    corpus_names: Optional[List[str]] = None
+    cost: Optional[str] = None
+    input_size_bytes: int
+    results_size_bytes: int
+    status: TaskStatus
+    output_file_urls: Optional[Dict[str, str]] = None
+
+
+class RunsPageAndTotal(BaseModel):
+    runs: List[RunDisplay]
+    total: int
+
+
+class RunCreationResponse(BaseModel):
+    status: str = "waiting"
+    run_id: str
