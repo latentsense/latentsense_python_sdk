@@ -2,7 +2,9 @@
 
 ## Overview
 
-The LatentSense Python SDK provides a convenient client for interacting with the Latentsense Interactive API. It simplifies authentication, file uploads, and requests to various API endpoints for text analysis and manipulation.
+The LatentSense Python SDK provides a convenient and developer-friendly client for accessing the LatentSense Interactive APIs. Designed for enterprise environments, it streamlines authentication, file handling, and API interactions, enabling organizations to transform unbounded corpora of unstructured language-as-data into reasoning-ready semantic structures (through rxMaps) and privacy-preserving data assets (through DeiD).
+
+Through capabilities such as semantic spaces mapping, saliency detection, relationship discovery, and data de-identification, the SDK helps convert language data into interoperable semantic infrastructure that can power analytics, agentic automation, knowledge systems, business workflows, and decision-making at enterprise scale. No RAG. No re-platforming. No ETL required.
 
 ## Installation
 
@@ -37,9 +39,9 @@ export LST_API_KEY="your-api-key"
 
 ## Usage
 
-See public methods of LatentSenseClient.
+See `https://docs.latentsense.com`
 
-For API documentation, see `https://docs.latentsense.com`
+Here's a basic example of how to initialize the client and use it to redact Personally Identifiable Information (PII) from a document.
 
 ```python
 import asyncio
@@ -54,7 +56,7 @@ client = LatentSenseClient()
 
 async def rx_map_example():
     in_memory_file = ("report.txt", "This is a report about Jane Smith.")
-    rx_map_results = await client.create_rx_map(files=[in_memory_file])
+    rx_map_results = await client.runs.create_rx_map(files=[in_memory_file])
     
     for result in rx_map_results:
         print(f"--- Results for {result.file.name} ---")
@@ -63,7 +65,7 @@ async def rx_map_example():
 
 async def redaction_example():
     in_memory_file = ("report.txt", "This is a report about Jane Smith.")
-    redacted_results = await client.redact_pii(files=[in_memory_file])
+    redacted_results = await client.runs.redact_pii(files=[in_memory_file])
     
     for result in redacted_results:
         print(f"--- Results for {result.file.name} ---")
